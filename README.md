@@ -80,7 +80,7 @@ Docker compose à mettre en place @todo
 
 ### Route `/commit/{repository}`
 
-Réalise les actions Git ̀`add`, `commit` et `push`.
+Réalise les actions Git `add`, `commit` et `push`.
 
 - Méthode : `POST`
 - Paramètre : `{repository}`, nom du dépôt
@@ -113,10 +113,8 @@ Dans le dépôt l'arborescence est :
 
 ```plaintext
 dépôt
-  │
-  └── entity
-        │
-        └── name
+ └─ entity
+     └─ name
 ```
 
 Le `content_type` est nécessaire pour savoir s'il faut enregistrer le fichier en mode texte ou binaire (non pris en compte pour le moment @todo).
