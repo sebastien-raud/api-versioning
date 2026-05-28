@@ -1,0 +1,22 @@
+{
+  "name": "versionning-worker",
+  "version": "1.0.0",
+  "description": "Exécution des tâches Git en asynchrone",
+  "keywords": [
+    "git",
+    "redis"
+  ],
+  "license": "MIT",
+  "author": "Sébastien Raud",
+  "type": "module",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "bullmq": "^5.77.6",
+    "ioredis": "^5.11.0",
+    "simple-git": "^3.36.0"
+  }
+}
