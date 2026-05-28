@@ -33,7 +33,7 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
 
 ```plaintext
 ┌─────────────────────────────────────────────────────┐
-│  versionning-api (Express.js, port 3000)            │
+│  versioning-api (Express.js, port 3000)             │
 │  - Endpoint POST /commit/:repository                │
 │  - Reçoit les demandes de commit                    │
 │  - Ajoute les jobs à la queue Redis (BullMQ)        │
@@ -48,7 +48,7 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
                  │
                  ↓ (Consomme les jobs)
 ┌─────────────────────────────────────────────────────┐
-│  versionning-worker (Node.js)                       │
+│  versioning-worker (Node.js)                        │
 │  - workerCommit: traite les commits Git             │
 │  - workerPush: pousse les changements               │
 │  - Gère les repositories locaux (repos/)            │
