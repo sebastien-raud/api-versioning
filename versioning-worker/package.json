@@ -1,5 +1,5 @@
 {
-  "name": "versionning-worker",
+  "name": "versioning-worker",
   "version": "1.0.0",
   "description": "Exécution des tâches Git en asynchrone",
   "keywords": [
