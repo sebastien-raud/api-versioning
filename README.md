@@ -13,6 +13,8 @@
   - [Usage de l'API](#usage-de-lapi)
     - [Route `/commit/{repository}`](#route-commitrepository)
       - [Détail des données](#détail-des-données)
+    - [Route `/history/{repository}/{entity}/{name}`](#route-historyrepositoryentityname)
+    - [Route `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}`](#route-diffrepositoryentitynamecommit1commit2)
   - [Todo](#todo)
 
 ## C'est quoi ?
@@ -74,9 +76,11 @@ Docker compose à mettre en place @todo
 
 ## Usage de l'API
 
-| Route                  | Méthode | Description                                       |
-| ---                    | ---     | ---                                               |
-| `/commit/{repository}` | `POST`  | Réalise le `add`, `commit` et `push` d'un fichier |
+| Route                                                    | Méthode | Description                                        |
+| ---                                                      | ---     | ---                                                |
+| `/commit/{repository}`                                   | `POST`  | Réalise le `add`, `commit` et `push` d'un fichier  |
+| `/history/{repository}/{entity}/{name}`                  | `GET`   | Affiche l'historique des `commit` d'un fichier     |
+| `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}` | `GET`   | Effectue un diff entre deux `commits` d'un fichier |
 
 ### Route `/commit/{repository}`
 
@@ -123,11 +127,74 @@ Les données `author` et `author_email` sont utilisée pour mémoriser l'auteur 
 
 Si le `message` n'est pas présent, le message par défaut est `Updated by {author} {author_email}`.
 
+### Route `/history/{repository}/{entity}/{name}`
+
+Retourne l'historique d'un fichier.
+
+- Méthode : `GET`
+- Paramètres :
+  - `{repository}` : nom du dépôt
+  - `{entity}` : nom de l'entité
+  - `{name}` : nom du fichier
+
+Retourne un objet JSON de la forme :
+
+```json
+{
+  "all": [
+    {
+      "hash": "d503f93e67e5f272ca29a20ba7d34f9bc6daf7d5",
+      "date": "2026-05-29T16:11:08+02:00",
+      "message": "Remise en place structuration",
+      "author_name": "Jean Dupont",
+      "author_email": "jean@example.com"
+    },
+    ...
+  ],
+  "latest": {
+    "hash": "d503f93e67e5f272ca29a20ba7d34f9bc6daf7d5",
+    "date": "2026-05-29T16:11:08+02:00",
+    "message": "Remise en place structuration",
+    "author_name": "Jean Dupont",
+    "author_email": "jean@example.com"
+  },
+  "total": 10
+}
+```
+
+- `all` : liste des `commit` retournés
+- `latest` : dernier `commit` réalisé sur le fichier
+- `total` : nombre d'éléments retournés
+
+On peut utiliser deux paramètres dans la query string :
+
+- `from` : index du premier `commit` à retourner
+- `limit` : nombre de `commit` à retourner, valeur maximum 50.
+
+### Route `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}`
+
+Retourne le diff entre deux `commit` d'un fichier.
+
+- Méthode : `GET`
+- Paramètres :
+  - `{repository}` : nom du dépôt
+  - `{entity}` : nom de l'entité
+  - `{name}` : nom du fichier
+  - `{commit1}` : hash du premier `commit`
+  - `{commit2}` : hash du second `commit`
+
+Retourne un objet JSON de la forme :
+
+```json
+{
+  "diff": "diff --git a/article/mon-article.md b/article/mon-article.md\nindex 3fa32c4..abc141b 100644\n--- a/article/mon-article.md\n+++ b/article/mon-article.md\n@@ -4,4 +4,4 @@\n Bla bla !\n Bla **bla** trc fdsfds\n dsq\n-dss ds *ds* **ds** 2325 dsq dsq dsq ! fsdf dsq dsq\n\\ No newline at end of file\n+dss ds *ds* **ds** 2325 dsq dsq dsq ! fsdf dsq\n\\ No newline at end of file\n"
+}
+```
+
+- `diff` : valeur du diff au format git diff.
+
 ## Todo
 
 - docker
-- gestion arbo
 - routes :
   - `delete` : suppression d'un fichier
-  - `history` : historique d'un fichier
-  - `diff` : diff entre deux commits d'un fichier
