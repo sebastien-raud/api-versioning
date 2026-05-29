@@ -9,6 +9,8 @@ import path from 'node:path';
 import { pushQueue } from './lib/queue.js';
 import { repoData } from './lib/repoData.js';
 
+import Redlock from 'redlock';
+
 const repositoriesDirectory = path.resolve(process.env.REPOS_DIR || '../repos/');
 const pushDelay = process.env.PUSH_DELAY || 30000;
 
@@ -17,6 +19,22 @@ const connection = new IORedis({
   port: Number(process.env.REDIS_PORT || 6379),
   maxRetriesPerRequest: null,
 });
+
+// lock redis on repo to avoid simultaneous git actions
+const redlock = new Redlock(
+  [connection],
+  {
+    retryCount: 10,
+    retryDelay: 200,
+  }
+);
+
+// SimpleGit configuration
+const simpleGitOptions = {
+  baseDir: undefined,
+  timeout: 10000,  // 10 secondes max
+  trimmed: true,
+};
 
 const workerCommit = new Worker(
   'git-commit',
@@ -32,74 +50,76 @@ const workerCommit = new Worker(
         throw new Error(`Invalid path ${data.safeFileName}`);
       }
 
-      const git = SimpleGit(data.gitRepository);
-      const isRepo = await git.checkIsRepo();
+      await redlock.using(
+        [`repo:${data.repository}`],
+        30000,
+        async () => {
+          const git = SimpleGit(data.gitRepository, simpleGitOptions);
+          const isRepo = await git.checkIsRepo();
 
-      if (!fs.existsSync(data.gitRepository) || !isRepo) {
-        throw new Error(`Repository not found: ${data.gitRepository}`);
-      }
+          if (!fs.existsSync(data.gitRepository) || !isRepo) {
+            throw new Error(`Repository not found: ${data.gitRepository}`);
+          }
 
-      // git pull rebase to avoid problems
-      await git.reset(['--hard']);
-      await git.clean('f', ['-d']);
-      await git.fetch();
+          // git pull rebase to avoid problems
+          await git.reset(['--hard']);
+          await git.clean('f', ['-d']);
 
-      await git.pull('origin', 'master', {
-        '--rebase': 'true',
-      });
+          // creates directory if not exists
+          if (!fs.existsSync(data.absoluteDirectoryPath)) {
+            fs.mkdirSync(data.absoluteDirectoryPath, { recursive: true});
+          }
+          
+          const stat = fs.statSync(data.absoluteDirectoryPath);
 
-      // creates directory if not exists
-      if (!fs.existsSync(data.absoluteDirectoryPath)) {
-        fs.mkdirSync(data.absoluteDirectoryPath, { recursive: true});
-      }
-      
-      const stat = fs.statSync(data.absoluteDirectoryPath);
+          if (!stat.isDirectory()) {
+            throw new Error(`${data.absoluteDirectoryPath} already exists and is not a directory.`);
+          }
 
-      if (!stat.isDirectory()) {
-        throw new Error(`${data.absoluteDirectoryPath} already exists and is not a directory.`);
-      }
+          // writes file, text or binary
+          if (data.contentType === 'text') {
+            fs.writeFileSync(data.absoluteFilePath, data.content, 'utf8');
+          } else {
+            fs.writeFileSync(data.absoluteFilePath, data.content);
+          }
 
-      // writes file, text or binary
-      if (data.contentType === 'text') {
-        fs.writeFileSync(data.absoluteFilePath, data.content, 'utf8');
-      } else {
-        fs.writeFileSync(data.absoluteFilePath, data.content);
-      }
+          // git add
+          await git.add(data.gitFilePath);
 
-      // git add
-      await git.add(data.gitFilePath);
+          const status = await git.status();
 
-      const status = await git.status();
+          if (!status.files.length) {
+            console.log('git:commit nothing to commit');
+            return;
+          }
 
-      if (!status.files.length) {
-        console.log('git:commit nothing to commit');
-        return;
-      }
+          // git commit
+          await git.commit(data.message, {
+            '--author': `${data.author} <${data.authorEmail}>`,
+          });
 
-      // git commit
-      await git.commit(data.message, {
-        '--author': `${data.author} <${data.authorEmail}>`,
-      });
+          console.log('git:commit job done');
 
-      console.log('git:commit job done');
+          const bucket = Math.floor(Date.now() / pushDelay);
 
-      const bucket = Math.floor(Date.now() / pushDelay);
-
-      // git push : send to queue
-      await pushQueue.add(
-        'push-content',
-        {
-          repository: data.repository,
-          gitRepository: data.gitRepository
-        },
-        {
-          delay: pushDelay,
-          jobId: `push-${data.repository}-${bucket}`,
-          removeOnComplete: true,
+          // git push : send to queue
+          await pushQueue.add(
+            'push-content',
+            {
+              repository: data.repository,
+              gitRepository: data.gitRepository
+            },
+            {
+              delay: pushDelay,
+              jobId: `push-${data.repository}-${bucket}`,
+              removeOnComplete: true,
+            }
+          );
         }
       );
     } catch (error) {
-      console.log(`git:commit job error : ${error.message}`);
+      console.error(`git:commit job error:`, error);
+      throw error;
     }
   },
   {
@@ -123,27 +143,36 @@ const workerPush = new Worker(
   async (job) => {
     console.log('git:push processing job', job.id);
 
-    // get data
-    const {
-      repository,
-      gitRepository
-    } = job.data;
+    try {
+      // get data
+      const {
+        repository,
+        gitRepository
+      } = job.data;
 
-    const git = SimpleGit(gitRepository);
+      await redlock.using(
+        [`repo:${repository}`],
+        30000,
+        async () => {
+          const git = SimpleGit(gitRepository, simpleGitOptions);
 
-    await git.fetch();
+          // check if push is needed
+          const status = await git.status();
 
-    // check if push is needed
-    const status = await git.status();
+          if (status.ahead > 0) {
+            await git.push();
+            console.log('git:push push done', job.id);
+          } else {
+            console.log('git:push push already done', job.id);
+          }
 
-    if (status.ahead > 0) {
-      await git.push();
-      console.log('git:push push done', job.id);
-    } else {
-      console.log('git:push push already done', job.id);
+          console.log('git:push job done', job.id);
+        }
+      );
+    } catch (error) {
+      console.error(`git:push job error:`, error);
+      throw error;
     }
-
-    console.log('git:push job done', job.id);
   },
   {
     connection,

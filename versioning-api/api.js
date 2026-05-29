@@ -11,16 +11,27 @@ app.disable('x-powered-by');
 app.use(express.json());
 
 /**
- * {
- *   "entity": "article",
- *   "entity_id": 42,
- *   "name": "mon-article",
- *   "content": "...markdown...",
- *   "content_type": "text or binary",
- *   "author": "Username",
- *   "author_email": "user@orga.fr",
- *   "message": "commit message"
- * }
+ * POST /commit/:repository
+ * 
+ * Enqueue un job git-commit asynchrone
+ * 
+ * @param {string} repository - Le slug du repo (ex: "mon-repo")
+ * @param {Object} body
+ *   - entity: string (dossier, ex: "article")
+ *   - entity_id: number (ID du contenu)
+ *   - name: string (nom du fichier, ex: "mon-article.md")
+ *   - content: string (contenu à écrire)
+ *   - content_type: "text" | "binary"
+ *   - author: string (nom d'auteur)
+ *   - author_email: string (email valide)
+ *   - message: string (optionnel, commit message)
+ * 
+ * @returns {202} { status: 'queued', jobId: 'uuid' }
+ * @returns {422} Erreur de validation
+ * @returns {500} Erreur serveur
+ * 
+ * @note Les retries automatiques sont appliqués (5 tentatives max)
+ * @note Le job s'exécutera séquentiellement (concurrency: 1)
  */
 app.post('/commit/:repository', async(req, res) => {
   try {
