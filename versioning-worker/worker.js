@@ -7,8 +7,10 @@ import fs, { statSync } from "node:fs";
 import path from 'node:path';
 
 import { pushQueue } from './lib/queue.js';
+import { repoData } from './lib/repoData.js';
 
 const repositoriesDirectory = path.resolve(process.env.REPOS_DIR || '../repos/');
+const pushDelay = process.env.PUSH_DELAY || 30000;
 
 const connection = new IORedis({
   host: process.env.REDIS_HOST || 'localhost',
@@ -21,107 +23,84 @@ const workerCommit = new Worker(
   async (job) => {
     console.log('git:commit processing job', job.id);
 
-    // get data
-    const {
-      repository,
-      entity,
-      name,
-      content,
-      content_type,
-      author,
-      author_email,
-      message,
-    } = job.data;
+    try {
+      // get data
+      const data = repoData(job.data, repositoriesDirectory);
 
-    const safePath = path.normalize(name);
-
-    // file path protections
-    if (safePath.includes('..') || path.isAbsolute(safePath)) {
-      throw new Error('Invalid path');
-    }
-
-    // starts git actions
-    const gitRepository = path.join(
-      repositoriesDirectory,
-      repository
-    );
-
-    const git = SimpleGit(gitRepository);
-    const isRepo = await git.checkIsRepo();
-
-    if (!fs.existsSync(gitRepository) || !isRepo) {
-      throw new Error(`Repository not found: ${repository}`);
-    }
-
-    // git pull rebase to avoid problems
-    await git.reset(['--hard']);
-    await git.clean('f', ['-d']);
-    await git.fetch();
-
-    await git.pull('origin', 'master', {
-      '--rebase': 'true',
-    });
-
-    // write content
-    const filepath = path.join(
-      repositoriesDirectory,
-      repository,
-      name
-    );
-
-    // creates directory if not exists
-    const dirname = path.dirname(filepath);
-    if (!fs.existsSync(dirname)) {
-      fs.mkdirSync(dirname, { recursive: true});
-    }
-    
-    const stat = fs.statSync(dirname);
-
-    if (!stat.isDirectory()) {
-      throw new Error(`${dirname} already exists and is not a directory.`);
-    }
-
-    // writes file, text or binary
-    if (content_type === 'text') {
-      fs.writeFileSync(filepath, content, 'utf8');
-    } else {
-      fs.writeFileSync(filepath, content);
-    }
-
-    // git add
-    await git.add(safePath);
-
-    const status = await git.status();
-
-    if (!status.files.length) {
-      console.log('git:commit nothing to commit');
-      return;
-    }
-
-    // git commit
-    await git.commit(message, {
-      '--author': `${author} <${author_email}>`,
-    });
-
-    console.log('git:commit job done');
-
-    const debounceWindow = 30000;
-    const bucket = Math.floor(
-      Date.now() / debounceWindow
-    );
-
-    // git push : send to queue
-    await pushQueue.add(
-      'push-content',
-      {
-        repository,
-      },
-      {
-        delay: debounceWindow,
-        jobId: `push-${repository}-${bucket}`,
-        removeOnComplete: true,
+      // file path protections
+      if (data.safeFileName.includes('..') || data.safeFileName.includes('/') || path.isAbsolute(data.safeFileName)) {
+        throw new Error(`Invalid path ${data.safeFileName}`);
       }
-    );
+
+      const git = SimpleGit(data.gitRepository);
+      const isRepo = await git.checkIsRepo();
+
+      if (!fs.existsSync(data.gitRepository) || !isRepo) {
+        throw new Error(`Repository not found: ${data.gitRepository}`);
+      }
+
+      // git pull rebase to avoid problems
+      await git.reset(['--hard']);
+      await git.clean('f', ['-d']);
+      await git.fetch();
+
+      await git.pull('origin', 'master', {
+        '--rebase': 'true',
+      });
+
+      // creates directory if not exists
+      if (!fs.existsSync(data.absoluteDirectoryPath)) {
+        fs.mkdirSync(data.absoluteDirectoryPath, { recursive: true});
+      }
+      
+      const stat = fs.statSync(data.absoluteDirectoryPath);
+
+      if (!stat.isDirectory()) {
+        throw new Error(`${data.absoluteDirectoryPath} already exists and is not a directory.`);
+      }
+
+      // writes file, text or binary
+      if (data.contentType === 'text') {
+        fs.writeFileSync(data.absoluteFilePath, data.content, 'utf8');
+      } else {
+        fs.writeFileSync(data.absoluteFilePath, data.content);
+      }
+
+      // git add
+      await git.add(data.gitFilePath);
+
+      const status = await git.status();
+
+      if (!status.files.length) {
+        console.log('git:commit nothing to commit');
+        return;
+      }
+
+      // git commit
+      await git.commit(data.message, {
+        '--author': `${data.author} <${data.authorEmail}>`,
+      });
+
+      console.log('git:commit job done');
+
+      const bucket = Math.floor(Date.now() / pushDelay);
+
+      // git push : send to queue
+      await pushQueue.add(
+        'push-content',
+        {
+          repository: data.repository,
+          gitRepository: data.gitRepository
+        },
+        {
+          delay: pushDelay,
+          jobId: `push-${data.repository}-${bucket}`,
+          removeOnComplete: true,
+        }
+      );
+    } catch (error) {
+      console.log(`git:commit job error : ${error.message}`);
+    }
   },
   {
     connection,
@@ -146,13 +125,9 @@ const workerPush = new Worker(
 
     // get data
     const {
-      repository
+      repository,
+      gitRepository
     } = job.data;
-
-    const gitRepository = path.join(
-      repositoriesDirectory,
-      repository
-    );
 
     const git = SimpleGit(gitRepository);
 
@@ -163,6 +138,9 @@ const workerPush = new Worker(
 
     if (status.ahead > 0) {
       await git.push();
+      console.log('git:push push done', job.id);
+    } else {
+      console.log('git:push push already done', job.id);
     }
 
     console.log('git:push job done', job.id);
