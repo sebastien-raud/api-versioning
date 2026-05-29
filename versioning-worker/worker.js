@@ -31,9 +31,7 @@ const redlock = new Redlock(
 
 // SimpleGit configuration
 const simpleGitOptions = {
-  baseDir: undefined,
   timeout: 10000,  // 10 secondes max
-  trimmed: true,
 };
 
 const workerCommit = new Worker(
