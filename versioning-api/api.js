@@ -3,6 +3,7 @@ import cors from "cors";
 
 import { commitController } from "./controllers/commit.js";
 import { historyController } from "./controllers/history.js";
+import { diffController } from "./controllers/diff.js";
 
 const app = express();
 const port = 3000;
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.post('/commit/:repository', commitController);
 app.get('/history/:repository/:entity/:name', historyController);
+app.get('/diff/:repository/:entity/:name/:commit1/:commit2', diffController);
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM reçu, arrêt du serveur...');
