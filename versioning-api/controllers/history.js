@@ -12,30 +12,21 @@ const simpleGitOptions = {
 /**
  * GET /history/:repository/:entity/:name
  * 
- * Enqueue un job git-commit asynchrone
+ * Retourne l'historique des commits d'un fichier
+ * Query string :
+ *   - from : index de début des retours (0 : dernier commit)
+ *   - limit : nombre maximum de retours (max : 50)
  * 
  * @param {string} repository - Le slug du repo (ex: "mon-repo")
- * @param {Object} body
- *   - entity: string (dossier, ex: "article")
- *   - entity_id: number (ID du contenu)
- *   - name: string (nom du fichier, ex: "mon-article.md")
- *   - content: string (contenu à écrire)
- *   - content_type: "text" | "binary"
- *   - author: string (nom d'auteur)
- *   - author_email: string (email valide)
- *   - message: string (optionnel, commit message)
+ * @param {string} entity - L'entité (ex: "article")
+ * @param {string} name - Le nom du fichier (ex: "mon-fichier.md")
  * 
- * @returns {202} { status: 'queued', jobId: 'uuid' }
- * @returns {422} Erreur de validation
- * @returns {500} Erreur serveur
- * 
- * @note Les retries automatiques sont appliqués (5 tentatives max)
- * @note Le job s'exécutera séquentiellement (concurrency: 1)
+ * @returns {200} { all: [...liste des commits...], total: 25 }
  */
 export async function historyController(req, res) {
   const { repository, entity, name } = req.params;
   
-  const limit = req.query.limit || 10;
+  let limit = (req.query.limit || 10) < 50 ? (req.query.limit || 10) : 50;
   const from = req.query.from || 0;
 
   const data = {
