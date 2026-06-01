@@ -78,7 +78,7 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
 
 ## Démo
 
-Une démo est disponible dans le répertoire `démo` : lancer le fichier `index.html` via un serveur et tester.
+Une démo est disponible dans le répertoire [`démo`](./demo/) : lancer le fichier `index.html` via un serveur et tester.
 
 ## Usage de l'API
 
