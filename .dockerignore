@@ -1,0 +1,12 @@
+.git
+.gitignore
+.vscode
+.idea
+*.log
+.DS_Store
+.editorconfig
+README.md
+cr-ia.md
+compose*.yml
+repos/
+demo/

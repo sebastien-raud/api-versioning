@@ -1,3 +1,5 @@
+import 'dotenv/config.js';
+
 import { Worker } from 'bullmq';
 import IORedis from "ioredis";
 import { dir } from 'node:console';

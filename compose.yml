@@ -1,0 +1,54 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: versioning-api/Dockerfile
+      args:
+        - GIT_USER_NAME=${GIT_USER_NAME}
+        - GIT_USER_EMAIL=${GIT_USER_EMAIL}
+    volumes:
+      - ./versioning-api:/srv/app
+      - ./repos:/repos
+    container_name: versioning-api
+    ports:
+      - 3000:3000
+    env_file: 
+      - path: ./versioning-api/.env
+        required: true
+      - path: ./.env
+        required: true
+    depends_on:
+      - workers
+    restart: unless-stopped
+
+  workers:
+    build:
+      context: .
+      dockerfile: versioning-workers/Dockerfile
+      args:
+        - GIT_USER_NAME=${GIT_USER_NAME}
+        - GIT_USER_EMAIL=${GIT_USER_EMAIL}
+    volumes:
+      - ./versioning-workers:/srv/app
+      - ./repos:/repos
+    container_name: versioning-workers
+    env_file:
+      - path: ./versioning-workers/.env
+        required: true
+      - path: ./.env
+        required: true
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    container_name: versioning-redis
+    volumes:
+      - versioning-api-redis:/data
+    restart: unless-stopped
+
+volumes:
+  versioning-api-redis:

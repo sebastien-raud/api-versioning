@@ -9,14 +9,16 @@
   "license": "MIT",
   "author": "Sébastien Raud",
   "type": "module",
-  "main": "worker.js",
+  "main": "workers.js",
   "scripts": {
-    "start": "node worker.js",
+    "start": "node workers.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "bullmq": "^5.77.6",
     "ioredis": "^5.11.0",
+    "redlock": "^5.0.0-beta.2",
     "simple-git": "^3.36.0"
   }
 }
