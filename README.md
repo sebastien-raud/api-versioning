@@ -68,11 +68,17 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
 
 ## Installation
 
-Docker compose à mettre en place @todo
+- copier le fichier `.env.example` en `.env` et compléter
+- copier le fichier `versioning-api/.env.example` en `versioning-api/.env` et compléter
+- copier le fichier `versioning-workers/.env.example` en `versioning-workers/.env` et compléter
+- dans le répertoire `ssh` copier les clés privées et publiques utilisées par GitHub ou autres (doivent être nommées `id_ed25519` et `id_ed25519.pub`)
+- créer un répertoire de stockage des dépôts (correspond à `REPOS_DIR` dans les `.env`)
+- initialiser un dépôt local dans ce répertoire ainsi que sur GitHub ou autres
+- lancer `docker compose up`
 
 ## Démo
 
-À faire @todo
+Une démo est disponible dans le répertoire `démo` : lancer le fichier `index.html` via un serveur et tester.
 
 ## Usage de l'API
 
