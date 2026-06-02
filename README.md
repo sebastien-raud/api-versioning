@@ -12,9 +12,11 @@
   - [Démo](#démo)
   - [Usage de l'API](#usage-de-lapi)
     - [Route `/commit/{repository}`](#route-commitrepository)
-      - [Détail des données](#détail-des-données)
+      - [Détail des données `commit`](#détail-des-données-commit)
     - [Route `/history/{repository}/{entity}/{name}`](#route-historyrepositoryentityname)
     - [Route `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}`](#route-diffrepositoryentitynamecommit1commit2)
+    - [Route \`/delete/:repository/:entity/:n](#route-deleterepositoryentityn)
+      - [Détail des données `delete`](#détail-des-données-delete)
   - [Todo](#todo)
 
 ## C'est quoi ?
@@ -82,11 +84,12 @@ Une démo est disponible dans le répertoire [`démo`](./demo/) : lancer le fich
 
 ## Usage de l'API
 
-| Route                                                    | Méthode | Description                                        |
-| ---                                                      | ---     | ---                                                |
-| `/commit/{repository}`                                   | `POST`  | Réalise le `add`, `commit` et `push` d'un fichier  |
-| `/history/{repository}/{entity}/{name}`                  | `GET`   | Affiche l'historique des `commit` d'un fichier     |
-| `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}` | `GET`   | Effectue un diff entre deux `commits` d'un fichier |
+| Route                                                    | Méthode  | Description                                        |
+| ---                                                      | ---      | ---                                                |
+| `/commit/{repository}`                                   | `POST`   | Réalise le `add`, `commit` et `push` d'un fichier  |
+| `/history/{repository}/{entity}/{name}`                  | `GET`    | Affiche l'historique des `commit` d'un fichier     |
+| `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}` | `GET`    | Effectue un diff entre deux `commits` d'un fichier |
+| `/delete/:repository/:entity/:name`                      | `DELETE` | Supprime un fichier                                |
 
 ### Route `/commit/{repository}`
 
@@ -108,7 +111,7 @@ Réalise les actions Git `add`, `commit` et `push`.
   }
   ```
 
-#### Détail des données
+#### Détail des données `commit`
 
 - `entity` : nom de l'entité sauvegardée (pas encore utilisé), obligatoire
 - `entity_id` : un identifiant unique de l'entité, numérique ou chaîne de caractères, obligatoire
@@ -199,8 +202,30 @@ Retourne un objet JSON de la forme :
 
 - `diff` : valeur du diff au format git diff.
 
+### Route `/delete/:repository/:entity/:n
+
+Supprime un fichier. Retourne un code 204 No Content en cas de succès.
+
+- Méthode : `GET`
+- Paramètres :
+  - `{repository}` : nom du dépôt
+  - `{entity}` : nom de l'entité
+  - `{name}` : nom du fichier
+- Données :
+  ```json
+  {
+    "author": "Sébastien Raud",
+    "author_email": "sebastien.raud@gmail.com",
+    "message": "commit message"
+  }
+  ```
+
+#### Détail des données `delete`
+
+- `author` : nom de l'utilisateur qui crée ou modifie le fichier, obligatoire
+- `author_email` : email de l'utilisateur qui crée ou modifie le fichier, obligatoire
+- `message` : message du `commit`, optionnel
+
 ## Todo
 
-- docker
-- routes :
-  - `delete` : suppression d'un fichier
+- sécurisation par token
