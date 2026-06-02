@@ -138,6 +138,114 @@ workerCommit.on('failed', (job, err) => {
   console.error(`git:commit job ${job?.id} failed`, err);
 });
 
+const workerDelete = new Worker(
+  'git-delete',
+  async (job) => {
+    console.log('git:delete processing job', job.id);
+
+    try {
+      // get data
+      const data = repoData(job.data, repositoriesDirectory);
+
+      // file path protections
+      if (data.safeFileName.includes('..') || data.safeFileName.includes('/') || path.isAbsolute(data.safeFileName)) {
+        throw new Error(`Invalid path ${data.safeFileName}`);
+      }
+
+      await redlock.using(
+        [`repo:${data.repository}`],
+        30000,
+        async () => {
+          const git = SimpleGit(data.gitRepository, simpleGitOptions);
+          const isRepo = await git.checkIsRepo();
+
+          if (!fs.existsSync(data.gitRepository) || !isRepo) {
+            throw new Error(`Repository not found: ${data.gitRepository}`);
+          }
+
+          // git pull rebase to avoid problems
+          await git.reset(['--hard']);
+          await git.clean('f', ['-d']);
+
+          // creates directory if not exists
+          if (!fs.existsSync(data.absoluteDirectoryPath)) {
+            fs.mkdirSync(data.absoluteDirectoryPath, { recursive: true});
+          }
+          
+          const statDir = fs.statSync(data.absoluteDirectoryPath);
+
+          if (!statDir.isDirectory()) {
+            throw new Error(`${data.absoluteDirectoryPath} already exists and is not a directory.`);
+          }
+
+          if (!fs.existsSync(data.absoluteFilePath)) {
+            throw new Error(`${data.absoluteFilePath} not exists`);
+          }
+
+          const statFile = fs.statSync(data.absoluteFilePath);
+
+          if (!statFile.isFile()) {
+            throw new Error(`${data.absoluteFilePath} already exists and is not a file.`);
+          }
+
+          // deletes file
+          fs.rmSync(data.absoluteFilePath);
+
+          // git add
+          await git.add(data.gitFilePath);
+
+          const status = await git.status();
+
+          if (!status.files.length) {
+            console.log('git:delete nothing to commit');
+            return;
+          }
+
+          // git commit
+          await git.commit(data.message, {
+            '--author': `${data.author} <${data.authorEmail}>`,
+          });
+
+          console.log('git:delete job done');
+
+          const bucket = Math.floor(Date.now() / pushDelay);
+
+          // git push : send to queue
+          await pushQueue.add(
+            'push-content',
+            {
+              repository: data.repository,
+              gitRepository: data.gitRepository
+            },
+            {
+              delay: pushDelay,
+              jobId: `push-${data.repository}-${bucket}`,
+              removeOnComplete: true,
+            }
+          );
+        }
+      );
+    } catch (error) {
+      console.error(`git:delete job error:`, error);
+      throw error;
+    }
+  },
+  {
+    connection,
+
+    // IMPORTANT pour git
+    concurrency: 1,
+  }
+);
+
+workerDelete.on('completed', (job) => {
+  console.log(`git:delete job ${job.id} completed`);
+});
+
+workerDelete.on('failed', (job, err) => {
+  console.error(`git:delete job ${job?.id} failed`, err);
+});
+
 const workerPush = new Worker(
   'git-push',
   async (job) => {

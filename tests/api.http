@@ -1,0 +1,54 @@
+# Requête 1 : nouveau commit
+POST http://localhost:3000/commit/test-repos HTTP/1.1
+Content-Type: application/json
+
+{
+  "entity": "article",
+  "entity_id": 40,
+  "name": "article-test.md",
+  "content": "# Mon titre\n## Sous titre\n\nCeci est un test",
+  "content_type": "text",
+  "author": "Sébastien Raud",
+  "author_email": "s_raud@yahoo.fr"
+}
+
+###
+
+# Requête 2 : nouveau mise à jour
+POST http://localhost:3000/commit/test-repos HTTP/1.1
+Content-Type: application/json
+
+{
+  "entity": "article",
+  "entity_id": 40,
+  "name": "article-test.md",
+  "content": "# Mon titre\n## Sous titre\n\nCeci est un **test**",
+  "content_type": "text",
+  "author": "Sébastien Raud",
+  "author_email": "s_raud@yahoo.fr"
+}
+
+###
+
+# Requête 3 : historique
+# @name history
+GET http://localhost:3000/history/test-repos/article/article-test.md HTTP/1.1
+
+###
+
+@hash1 = {{history.response.body.all[0].hash}}
+@hash2 = {{history.response.body.all[1].hash}}
+
+# Requête 4 : diff
+GET http://localhost:3000/diff/test-repos/article/article-test.md/{{hash1}}/{{hash2}}
+
+###
+
+# Requête 4 : delete
+DELETE http://localhost:3000/delete/test-repos/article/article-test.md HTTP/1.1
+Content-Type: application/json
+
+{
+  "author": "Sébastien Raud",
+  "author_email": "s_raud@yahoo.fr"
+}

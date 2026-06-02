@@ -10,3 +10,7 @@ const connection = new IORedis({
 export const commitQueue = new Queue('git-commit', {
   connection,
 });
+
+export const deleteQueue = new Queue('git-delete', {
+  connection,
+});
