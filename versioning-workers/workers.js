@@ -151,9 +151,12 @@ async function executeGitOperations(operation, logData, job) {
         throw new Error(`Repository not found: ${data.gitRepository}`);
       }
 
-      // git pull rebase to avoid problems
-      await git.reset(['--hard']);
-      await git.clean('f', ['-d']);
+      // check if repo is ready
+      let status = await git.status();
+      if (status.modified.length || status.not_added.length || status.created.length ||
+          status.deleted.length || status.renamed.length) {
+        throw new Error(`Repository ${data.gitRepository} is dirty before operation`);
+      }
 
       // creates directory if not exists
       if (!fs.existsSync(data.absoluteDirectoryPath)) {
@@ -193,7 +196,7 @@ async function executeGitOperations(operation, logData, job) {
 
       // git add
       await git.add(data.gitFilePath);
-      const status = await git.status();
+      status = await git.status();
 
       if (!status.files.length) {
         logger.warn(logData, `git:${operation} nothing to commit`);

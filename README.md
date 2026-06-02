@@ -36,36 +36,36 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
 ### Schéma
 
 ```plaintext
-┌────────────────────────────────────────────────────────────────┐
-│  versioning-api (Express.js, port 3000)                        │
-│  - Endpoint POST /commit/:repository                           │
-│    - demandes de commit                                        │
-│    - ajoute les jobs à la queue Redis (BullMQ)                 │
-│  - Endpoint GET /history/:repository/:entity/:name             │
-│    - demandes d'historique                                     │
-│  - Endpoint GET /diff/:repository/:entity/:name/:hash1/:hash2  │
-│    - demandes de diff                                          │
-│  - Endpoint DELETE /delete/:repository/:entity/:name           │
-│    - demandes de suppression                                   │
-│    - ajoute les jobs à la queue Redis (BullMQ)                 │
-└──────────────────────────┬─────────────────────────────────────┘
+┌───────────────────────────────────────────────────────┐
+│  versioning-api (Express.js, port 3000)               │
+│  - POST /commit/:repository                           │
+│    - demandes de commit                               │
+│    - ajoute les jobs à la queue Redis (BullMQ)        │
+│  - GET /history/:repository/:entity/:name             │
+│    - demandes d'historique                            |
+│  - GET /diff/:repository/:entity/:name/:hash1/:hash2  │
+│    - demandes de diff                                 |
+│  - DELETE /delete/:repository/:entity/:name           │
+│    - demandes de suppression                          │
+│    - ajoute les jobs à la queue Redis (BullMQ)        │
+└───────────────────────────────────────────────────────┘
                            │
-                           ↓ (Queue via Redis)
-┌────────────────────────────────────────────────────────────────┐
-│  Redis (BullMQ)                                                │
-│  - git-commit (queue pour les commits)                         │
-│  - git-delete (queue pour les deletes)                         │
-│  - git-push (queue pour les pushes)                            │
-└──────────────────────────┬─────────────────────────────────────┘
+                           ▼ (Queue via Redis)
+┌───────────────────────────────────────────────────────┐
+│  Redis (BullMQ)                                       │
+│  - git-commit (queue pour les commits)                │
+│  - git-delete (queue pour les deletes)                │
+│  - git-push (queue pour les pushes)                   │
+└───────────────────────────────────────────────────────┘
                            │
-                           ↓ (Consomme les jobs)
-┌────────────────────────────────────────────────────────────────┐
-│  versioning-worker (Node.js)                                   │
-│  - workerCommit: traite les commits Git                        │
-│  - workerDelete: traite les deletes Git                        │
-│  - workerPush: pousse les changements                          │
-│  - Gère les repositories locaux                                │
-└────────────────────────────────────────────────────────────────┘
+                           ▼ (Consomme les jobs)
+┌───────────────────────────────────────────────────────┐
+│  versioning-worker (Node.js)                          │
+│  - workerCommit: traite les commits Git               │
+│  - workerDelete: traite les deletes Git               │
+│  - workerPush: pousse les changements                 │
+│  - Gère les repositories locaux                       │
+└───────────────────────────────────────────────────────┘
 ```
 
 ### Composants
