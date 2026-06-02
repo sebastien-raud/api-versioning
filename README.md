@@ -15,7 +15,7 @@
       - [Détail des données `commit`](#détail-des-données-commit)
     - [Route `/history/{repository}/{entity}/{name}`](#route-historyrepositoryentityname)
     - [Route `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}`](#route-diffrepositoryentitynamecommit1commit2)
-    - [Route \`/delete/:repository/:entity/:n](#route-deleterepositoryentityn)
+    - [Route `/delete/:repository/:entity/:name`](#route-deleterepositoryentityname)
       - [Détail des données `delete`](#détail-des-données-delete)
   - [Todo](#todo)
 
@@ -202,7 +202,7 @@ Retourne un objet JSON de la forme :
 
 - `diff` : valeur du diff au format git diff.
 
-### Route `/delete/:repository/:entity/:n
+### Route `/delete/:repository/:entity/:name`
 
 Supprime un fichier. Retourne un code 204 No Content en cas de succès.
 
