@@ -166,24 +166,21 @@ async function executeGitOperations(operation, logData, job) {
         throw new Error(`${data.absoluteDirectoryPath} already exists and is not a directory.`);
       }
 
-      if (!fs.existsSync(data.absoluteFilePath)) {
-        throw new Error(`${data.absoluteFilePath} not exists`);
-      }
-logger.info({k: '0', operation}, 'MES_LOGS');
       if (operation === 'commit') {
-        // writes file, text or 
-logger.info({k: '1', operation}, 'MES_LOGS');
-         if (data.contentType === 'text') {
-logger.info({k: '2', operation}, 'MES_LOGS');
-           fs.writeFileSync(data.absoluteFilePath, data.content, 'utf8');
-         } else {
-           fs.writeFileSync(data.absoluteFilePath, data.content);
-         }
+        // writes file, text or binary
+        if (data.contentType === 'text') {
+          fs.writeFileSync(data.absoluteFilePath, data.content, 'utf8');
+        } else {
+          fs.writeFileSync(data.absoluteFilePath, data.content);
+        }
 
-         logger.info(logData, 'git:commit file written');
+        logger.info(logData, 'git:commit file written');
       } else if (operation === 'delete') {
+        if (!fs.existsSync(data.absoluteFilePath)) {
+          throw new Error(`${data.absoluteFilePath} not exists`);
+        }
+
         const statFile = fs.statSync(data.absoluteFilePath);
-logger.info({k: '3', operation}, 'MES_LOGS');
         if (!statFile.isFile()) {
           throw new Error(`${data.absoluteFilePath} already exists and is not a file.`);
         }
