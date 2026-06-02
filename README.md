@@ -238,3 +238,5 @@ Supprime un fichier. Retourne un code 204 No Content en cas de succès.
 ## Todo
 
 - sécurisation par token
+- logs
+- traçabilité
