@@ -2,6 +2,13 @@ import SimpleGit from "simple-git";
 import path from 'node:path';
 import fs from "node:fs";
 
+import pino from 'pino';
+import { log } from "node:console";
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+});
+
 const repositoriesDirectory = path.resolve(process.env.REPOS_DIR || '../repos/');
 
 // SimpleGit configuration
@@ -25,36 +32,59 @@ const simpleGitOptions = {
 export async function diffController(req, res) {
   const { repository, entity, name, commit1, commit2 } = req.params;
 
-  const data = {
+  const logData = {
     repository,
     entity,
     name,
     commit1: commit1.substring(0, 7),
     commit2: commit2.substring(0, 7),
-
-    safeFileName: path.basename(name),
-    safeEntity: path.basename(entity),
   };
+  
+  logger.info(logData, 'api:diff request received');
 
-  const basePath = path.resolve(repositoriesDirectory, data.repository);
+  try {
+    const data = {
+      repository,
+      entity,
+      name,
+      commit1: commit1.substring(0, 7),
+      commit2: commit2.substring(0, 7),
 
-  data.absoluteFilePath = path.resolve(basePath, data.safeEntity, data.safeFileName);  
-  data.gitRepository = path.join(repositoriesDirectory, data.repository);
-  data.gitFilePath = path.join(data.safeEntity, data.safeFileName);
+      safeFileName: path.basename(name),
+      safeEntity: path.basename(entity),
+    };
 
-  // CRITICAL SECURITY CHECK: Ensure path doesn't escape base directory
-  if (!data.absoluteFilePath.startsWith(basePath)) {
-    throw new Error(`Path traversal detected: ${data.absoluteFilePath}`);
+    const basePath = path.resolve(repositoriesDirectory, data.repository);
+
+    data.absoluteFilePath = path.resolve(basePath, data.safeEntity, data.safeFileName);  
+    data.gitRepository = path.join(repositoriesDirectory, data.repository);
+    data.gitFilePath = path.join(data.safeEntity, data.safeFileName);
+
+    // CRITICAL SECURITY CHECK: Ensure path doesn't escape base directory
+    if (!data.absoluteFilePath.startsWith(basePath)) {
+      throw new Error(`Path traversal detected: ${data.absoluteFilePath}`);
+    }
+
+    const git = SimpleGit(data.gitRepository, simpleGitOptions);
+    const isRepo = await git.checkIsRepo();
+
+    if (!fs.existsSync(data.gitRepository) || !isRepo) {
+      throw new Error(`Repository not found: ${data.gitRepository}`);
+    }
+
+    const diff = await git.diff([data.commit1, data.commit2, '--', data.gitFilePath]);
+
+    res.send({diff});
+  } catch (error) {
+    logger.error({
+        ...logData,
+        error: "Internal server error",
+        details: error.message,
+      }, 'api:diff request error');
+
+    return res.status(500).send({
+      error: 'Internal server error',
+      details: error.message
+    });
   }
-
-  const git = SimpleGit(data.gitRepository, simpleGitOptions);
-  const isRepo = await git.checkIsRepo();
-
-  if (!fs.existsSync(data.gitRepository) || !isRepo) {
-    throw new Error(`Repository not found: ${data.gitRepository}`);
-  }
-
-  const diff = await git.diff([data.commit1, data.commit2, '--', data.gitFilePath]);
-
-  res.send({diff});
 }

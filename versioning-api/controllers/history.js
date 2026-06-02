@@ -2,6 +2,13 @@ import SimpleGit from "simple-git";
 import path from 'node:path';
 import fs from "node:fs";
 
+import pino from 'pino';
+import { log } from "node:console";
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+});
+
 const repositoriesDirectory = path.resolve(process.env.REPOS_DIR || '../repos/');
 
 // SimpleGit configuration
@@ -29,39 +36,62 @@ export async function historyController(req, res) {
   let limit = (req.query.limit || 10) < 50 ? (req.query.limit || 10) : 50;
   const from = req.query.from || 0;
 
-  const data = {
+  const logData = {
     repository,
     entity,
     name,
-
-    safeFileName: path.basename(name),
-    safeEntity: path.basename(entity),
+    limit,
+    from
   };
-
-  const basePath = path.resolve(repositoriesDirectory, data.repository);
-
-  data.absoluteFilePath = path.resolve(basePath, data.safeEntity, data.safeFileName);  
-  data.gitRepository = path.join(repositoriesDirectory, data.repository);
-  data.gitFilePath = path.join(data.safeEntity, data.safeFileName);
-
-  // CRITICAL SECURITY CHECK: Ensure path doesn't escape base directory
-  if (!data.absoluteFilePath.startsWith(basePath)) {
-    throw new Error(`Path traversal detected: ${data.absoluteFilePath}`);
-  }
-
-  const git = SimpleGit(data.gitRepository, simpleGitOptions);
-  const isRepo = await git.checkIsRepo();
-
-  if (!fs.existsSync(data.gitRepository) || !isRepo) {
-    throw new Error(`Repository not found: ${data.gitRepository}`);
-  }
-
-  const log = await git.log({ file: data.gitFilePath, '--max-count': limit, '--skip': from });
   
-  log.all.forEach(l => {
-    delete l.refs;
-    delete l.body
-  });
+  logger.info(logData, 'api:history request received');
 
-  res.send(log);
+  try {
+    const data = {
+      repository,
+      entity,
+      name,
+
+      safeFileName: path.basename(name),
+      safeEntity: path.basename(entity),
+    };
+
+    const basePath = path.resolve(repositoriesDirectory, data.repository);
+
+    data.absoluteFilePath = path.resolve(basePath, data.safeEntity, data.safeFileName);  
+    data.gitRepository = path.join(repositoriesDirectory, data.repository);
+    data.gitFilePath = path.join(data.safeEntity, data.safeFileName);
+
+    // CRITICAL SECURITY CHECK: Ensure path doesn't escape base directory
+    if (!data.absoluteFilePath.startsWith(basePath)) {
+      throw new Error(`Path traversal detected: ${data.absoluteFilePath}`);
+    }
+
+    const git = SimpleGit(data.gitRepository, simpleGitOptions);
+    const isRepo = await git.checkIsRepo();
+
+    if (!fs.existsSync(data.gitRepository) || !isRepo) {
+      throw new Error(`Repository not found: ${data.gitRepository}`);
+    }
+
+    const log = await git.log({ file: data.gitFilePath, '--max-count': limit, '--skip': from });
+    
+    log.all.forEach(l => {
+      delete l.refs;
+      delete l.body
+    });
+
+    res.send(log);
+  } catch (error) {  
+    logger.error({
+        ...logData,
+        error: "Internal server error",
+        details: error.message,
+      }, 'api:history request error');
+
+    return res.status(500).send({
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
 }

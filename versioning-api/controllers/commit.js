@@ -1,6 +1,12 @@
 import * as z from "zod";
 import { commitQueue } from "../lib/queue.js";
 
+import pino from 'pino';
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+});
+
 /**
  * POST /commit/:repository
  * 
@@ -25,6 +31,16 @@ import { commitQueue } from "../lib/queue.js";
  * @note Le job s'exécutera séquentiellement (concurrency: 1)
  */
 export async function commitController(req, res) {
+
+  const logData = {
+    repository: req.body?.repository,
+    entity: req.body?.entity,
+    name: req.body?.name,
+    author: `${req.body?.author} <${req.body?.author_email}>`,
+  };
+
+  logger.info(logData, 'api:commit request received');
+
   try {
     // data validation
     const validation = z.object({
@@ -37,13 +53,20 @@ export async function commitController(req, res) {
       author_email: z.string().email(),
       message: z.string().trim().optional(),
     });
+
     const result = validation.safeParse(req.body);
 
     if (!result.success) {
+      logger.error({
+        ...logData,
+        error: "Can't commit content",
+        details: result.error,
+      }, 'api:commit request data validation');
+
       return res.status(422).send({
         error: "Can't commit content",
         details: result.error
-      })
+      });
     }
 
     const data = result.data;
@@ -72,13 +95,23 @@ export async function commitController(req, res) {
       }
     );
 
+    logger.info({
+        ...logData,
+        jobId: job.id
+      }, 'api:commit commit queued');
+
     // return status
     return res.status(202).send({
       status: 'queued',
       jobId: job.id,
     });
   } catch (error) {
-    console.error(error);
+
+    logger.error({
+        ...logData,
+        error: "Internal server error",
+        details: error.message,
+      }, 'api:commit request error');
 
     return res.status(500).send({
       error: 'Internal server error',

@@ -1,6 +1,12 @@
 import * as z from "zod";
 import { deleteQueue } from "../lib/queue.js";
 
+import pino from 'pino';
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+});
+
 /**
  * DELETE /delete/:repository/:entity/:name
  * 
@@ -24,6 +30,15 @@ import { deleteQueue } from "../lib/queue.js";
 export async function deleteController(req, res) {
   const { repository, entity, name } = req.params;
 
+  const logData = {
+    repository: repository,
+    entity: entity,
+    name: name,
+    author: `${req.body?.author} <${req.body?.author_email}>`,
+  }
+  
+  logger.info(logData, 'api:delete request received');
+
   try {
     const validation = z.object({
       author: z.string().trim(),
@@ -33,8 +48,13 @@ export async function deleteController(req, res) {
     const result = validation.safeParse(req.body);
 
     if (!result.success) {
+      logger.error({
+        ...logData,
+        details: result.error,
+      }, 'api:delete request data validation');
+
       return res.status(422).send({
-        error: "Can't commit content",
+        error: "Can't delete content",
         details: result.error
       })
     }
@@ -64,9 +84,25 @@ export async function deleteController(req, res) {
         removeOnFail: 100,
       }
     );
-    res.status(204).end();
+
+    logger.info({
+        ...logData,
+        jobId: job.id
+      }, 'api:delete queued');
+
+    
+      // return status
+    return res.status(202).send({
+      status: 'queued',
+      jobId: job.id,
+    });
   } catch (error) {
-    console.error(error);
+    
+    logger.error({
+        ...logData,
+        error: "Internal server error",
+        details: error.message,
+      }, 'api:delete request error');
 
     return res.status(500).send({
       error: 'Internal server error',
