@@ -54,4 +54,7 @@ COPY --from=builder /srv/app/node_modules ./node_modules
 # Copy application source
 COPY versioning-workers/ .
 
+# Creates table operations
+#RUN node createDb.js
+
 CMD ["npm", "start"]

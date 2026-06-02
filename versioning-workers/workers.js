@@ -15,6 +15,8 @@ import Redlock from 'redlock';
 
 import pino from 'pino';
 
+import { auditOperation } from './lib/audit.js';
+
 const repositoriesDirectory = path.resolve(process.env.REPOS_DIR || '../repos/');
 
 const pushDelay = Number(process.env.PUSH_DELAY || 30000);
@@ -61,6 +63,8 @@ const workerCommit = new Worker(
     try {
       await executeGitOperations('commit', logData, job);
     } catch (error) {
+      logger.info({...logData, sha}, `git:${operation} job done`);
+
       logger.error({
           ...logData,
           details: error.message
@@ -129,6 +133,14 @@ const workerDelete = new Worker(
 async function executeGitOperations(operation, logData, job) {
   // get data
   const data = repoData(job.data, repositoriesDirectory);
+
+  // log operation
+  auditOperation({
+    entity: data.entity,
+    file: data.gitFilePath,
+    author: data.author,
+    authorEmail: data.authorEmail,
+  }, operation, 'started', job.id);
 
   // file path protections
   if (data.safeFileName.includes('..') || data.safeFileName.includes('/') || path.isAbsolute(data.safeFileName)) {
@@ -209,6 +221,15 @@ async function executeGitOperations(operation, logData, job) {
       });
 
       const sha = (await git.revparse(['HEAD'])).trim();
+
+      // log operation
+      auditOperation({
+        entity: data.entity,
+        file: data.gitFilePath,
+        author: data.author,
+        authorEmail: data.authorEmail,
+        commitSha: sha
+      }, operation, 'commited', job.id);
       logger.info({...logData, sha}, `git:${operation} job done`);
 
       const bucket = Math.floor(Date.now() / pushDelay);
@@ -252,7 +273,13 @@ workerDelete.on('failed', (job, err) => {
 const workerPush = new Worker(
   'git-push',
   async (job) => {
-    
+
+    // log operation
+    auditOperation({
+      entity: job.data.entity,
+      file: job.data.gitFilePath,
+    }, 'push', 'started', job.id);
+
     const logData = {
       repository: job.data.repository,
       gitRepository: job.data.gitRepository,
@@ -288,6 +315,13 @@ const workerPush = new Worker(
         }
       );
     } catch (error) {
+      // log operation
+      auditOperation({
+        entity: job.data.entity,
+        file: job.data.gitFilePath,
+        errorMessage: error.message
+      }, 'push', 'error', job.id);
+
       logger.error({
           ...logData,
           error: error.message

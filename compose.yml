@@ -31,6 +31,7 @@ services:
     volumes:
       - ./versioning-workers:/srv/app
       - ./repos:/repos
+      - ./data:/data
     container_name: versioning-workers
     env_file:
       - path: ./versioning-workers/.env
