@@ -11,6 +11,7 @@
   "type": "module",
   "main": "workers.js",
   "scripts": {
+    "create-db": "node createDb.js",
     "start": "node workers.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -15,7 +15,7 @@ import Redlock from 'redlock';
 
 import pino from 'pino';
 
-import { auditOperation } from './lib/audit.js';
+import { auditOperation, AUDIT_STATES } from './lib/audit.js';
 
 const repositoriesDirectory = path.resolve(process.env.REPOS_DIR || '../repos/');
 
@@ -63,8 +63,13 @@ const workerCommit = new Worker(
     try {
       await executeGitOperations('commit', logData, job);
     } catch (error) {
-      logger.info({...logData, sha}, `git:${operation} job done`);
-
+      // log operation
+      auditOperation({
+        repository: logData.repository,
+        entity: logData.entity,
+        file: logData.gitFilePath,
+        errorMessage: error.message,
+      }, 'commit', AUDIT_STATES.ERROR, job.id);
       logger.error({
           ...logData,
           details: error.message
@@ -115,6 +120,13 @@ const workerDelete = new Worker(
     try {
       await executeGitOperations('delete', logData, job);
     } catch (error) {
+      // log operation
+      auditOperation({
+        repository: logData.repository,
+        entity: logData.entity,
+        file: logData.gitFilePath,
+        errorMessage: error.message,
+      }, 'delete', AUDIT_STATES.ERROR, job.id);
       logger.error({
           ...logData,
           details: error.message
@@ -136,11 +148,12 @@ async function executeGitOperations(operation, logData, job) {
 
   // log operation
   auditOperation({
+    repository: data.repository,
     entity: data.entity,
     file: data.gitFilePath,
     author: data.author,
     authorEmail: data.authorEmail,
-  }, operation, 'started', job.id);
+  }, operation, AUDIT_STATES.STARTED, job.id);
 
   // file path protections
   if (data.safeFileName.includes('..') || data.safeFileName.includes('/') || path.isAbsolute(data.safeFileName)) {
@@ -224,12 +237,13 @@ async function executeGitOperations(operation, logData, job) {
 
       // log operation
       auditOperation({
+        repository: data.repository,
         entity: data.entity,
         file: data.gitFilePath,
         author: data.author,
         authorEmail: data.authorEmail,
         commitSha: sha
-      }, operation, 'commited', job.id);
+      }, operation, AUDIT_STATES.COMMITTED, job.id);
       logger.info({...logData, sha}, `git:${operation} job done`);
 
       const bucket = Math.floor(Date.now() / pushDelay);
@@ -238,8 +252,8 @@ async function executeGitOperations(operation, logData, job) {
       await pushQueue.add(
         'push-content',
         {
-          repository: data.repository,
-          gitRepository: data.gitRepository
+          ...data,
+          originJobId: job.id
         },
         {
           delay: pushDelay,
@@ -276,9 +290,11 @@ const workerPush = new Worker(
 
     // log operation
     auditOperation({
+      repository: job.data.repository,
       entity: job.data.entity,
       file: job.data.gitFilePath,
-    }, 'push', 'started', job.id);
+      originJobId: job.data.originJobId
+    }, 'push', AUDIT_STATES.STARTED, job.id);
 
     const logData = {
       repository: job.data.repository,
@@ -311,16 +327,26 @@ const workerPush = new Worker(
             logger.warn(logData, 'git:push already done');
           }
 
+          // log operation
+          auditOperation({
+            repository: job.data.repository,
+            entity: job.data.entity,
+            file: job.data.gitFilePath,
+            originJobId: job.data.originJobId
+          }, 'push', AUDIT_STATES.DONE, job.id);
+
           logger.info(logData, 'git:push job done');
         }
       );
     } catch (error) {
       // log operation
       auditOperation({
+        repository: job.data.repository,
         entity: job.data.entity,
         file: job.data.gitFilePath,
-        errorMessage: error.message
-      }, 'push', 'error', job.id);
+        errorMessage: error.message,
+        originJobId: job.data.originJobId 
+      }, 'push', AUDIT_STATES.ERROR, job.id);
 
       logger.error({
           ...logData,

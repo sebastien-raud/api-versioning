@@ -1,13 +1,22 @@
 import { DatabaseSync } from 'node:sqlite';
 
-const db = new DatabaseSync('/data/audits.sqlite');
+const sqliteDbPath = process.env.SQLITE_DB || './data/audits.sqlite';
+const db = new DatabaseSync(sqliteDbPath);
+
+export const AUDIT_STATES = {
+  STARTED: 'started',
+  COMMITTED: 'committed',
+  DONE: 'done',
+  ERROR: 'error'
+};
 
 export function auditCreateTableOperations() {
+  // note : created_at is UTC
   db.exec(`
     CREATE TABLE IF NOT EXISTS operations (
-      id INTEGER PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-      created_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT (datetime('now','localtime')),
 
       repository TEXT NOT NULL,
 
@@ -23,6 +32,7 @@ export function auditCreateTableOperations() {
       commit_sha TEXT,
 
       job_id TEXT,
+      origin_job_id TEXT,
 
       error_message TEXT,
 
@@ -31,10 +41,9 @@ export function auditCreateTableOperations() {
   );
 }
 
-export function auditOperation(data, operation, status, jobId, errorMessage = null, metadata = null) {
+export function auditOperation(data, operation, status, jobId) {
   const stmt = db.prepare(`
     INSERT INTO operations (
-      created_at,
       repository,
       operation,
       status,
@@ -44,6 +53,7 @@ export function auditOperation(data, operation, status, jobId, errorMessage = nu
       author_email,
       commit_sha,
       job_id,
+      origin_job_id,
       error_message,
       metadata
     )
@@ -51,17 +61,17 @@ export function auditOperation(data, operation, status, jobId, errorMessage = nu
   `);
 
   stmt.run(
-    new Date().toISOString(),
     data?.repository || '',
-    operation,
-    status,
-    data?.entity,
-    data?.file,
-    data?.author,
-    data?.authorEmail,
-    data?.commitSha,
-    data?.jobId,
-    data?.errorMessage,
-    data?.metadata
+    operation || '',
+    status || '',
+    data?.entity ?? '',
+    data?.file ?? '',
+    data?.author ?? '',
+    data?.authorEmail ?? '',
+    data?.commitSha ?? '',
+    jobId ? jobId.toString() : '',
+    data?.originJobId ?? '',
+    data?.errorMessage ?? '',
+    data?.metadata ?? ''
   );
 }

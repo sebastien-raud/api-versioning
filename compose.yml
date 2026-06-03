@@ -28,6 +28,8 @@ services:
       args:
         - GIT_USER_NAME=${GIT_USER_NAME}
         - GIT_USER_EMAIL=${GIT_USER_EMAIL}
+    post_start:
+      - command : sh -c "npm run create-db"
     volumes:
       - ./versioning-workers:/srv/app
       - ./repos:/repos
