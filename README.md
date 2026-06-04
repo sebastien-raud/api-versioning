@@ -9,6 +9,10 @@
     - [Schéma](#schéma)
     - [Composants](#composants)
   - [Installation](#installation)
+  - [Stratégie et comportements](#stratégie-et-comportements)
+    - [Garanties et promesses](#garanties-et-promesses)
+    - [Diagnostiquer les erreurs](#diagnostiquer-les-erreurs)
+    - [Cas d'usage typique](#cas-dusage-typique)
   - [Démo](#démo)
   - [Usage de l'API](#usage-de-lapi)
     - [Route `/commit/{repository}`](#route-commitrepository)
@@ -98,6 +102,70 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
 - initialiser un dépôt local dans ce répertoire ainsi que sur GitHub ou autres
 - lancer `docker compose up`
 
+## Stratégie et comportements
+
+### Garanties et promesses
+
+**⚠️ Important pour intégrer correctement avec Strapi :**
+
+1. **Commit = succès local immédiat**
+   - L'API retourne `HTTP 202 Accepted` dès que le job est enqueué
+   - Cela **ne signifie pas** que le commit Git a réussi
+   - Le commit local sera réalisé en arrière-plan par le worker
+   - Une fois commité localement, le fichier est **immédiatement visible** en history
+   - Les erreurs d'opérations Git sont **loggées en audit**, pas communiquées à Strapi
+
+2. **Push est découplé du commit**
+   - Le push (synchronisation vers GitHub/Gitlab) est une opération **séparée et asynchrone**
+   - Il se réalise en différé (configurable via `PUSH_DELAY`)
+   - Cela permet de regrouper plusieurs commits dans un seul push
+   - Un commit peut être visible en history local sans être encore synchronisé avec GitHub
+   - Les erreurs de push n'affectent pas les commits locaux
+
+3. **History a toujours une limite**
+   - `limit` est plafonné à **50** commits maximum
+   - Pas de "récupérer tous les commits" : le paramètre `limit` est obligatoire
+   - Utiliser `from` et `limit` pour paginer
+   - Permet de garder les performances même sur des files avec 10 000+ commits
+
+### Diagnostiquer les erreurs
+
+Strapi ne reçoit **aucune notification** en cas d'erreur de commit ou push. C'est intentionnel.
+
+**Pour l'administrateur :**
+
+- Consulter la route `/audit` avec les filtres appropriés
+- Chercher les `status = 'error'` ou `status = 'started'` (qui pourrait indiquer un job bloqué)
+- Exemples de filtres utiles :
+  ```plaintext
+  # Tous les commits en erreur pour un fichier
+  audit?filters=(file = 'article-48.md' and operation = 'commit' and status = 'error')
+  
+  # Tous les pushes échoués
+  audit?filters=(operation = 'push' and status = 'error')
+  ```
+
+### Cas d'usage typique
+
+```plaintext
+1. Strapi appelle POST /commit/:repository
+   → HTTP 202 Accepted { jobId: '...' }
+   
+2. Job enqueué dans Redis, travailleur le traite
+
+3. Travailleur exécute git add/commit localement
+   → Commit local succès → visible immédiatement en history
+   → Commit local erreur → loggé en audit, Strapi ne le sait pas
+
+4. (Optionnel) Travailleur enqueue job push après délai
+   → Push vers GitHub succes/erreur → loggé en audit
+   
+5. Strapi consulte la route /history pour voir l'état actuel
+   → Voit les commits présents (locaux ou syncés)
+   
+6. En cas de problème, admin consulte /audit pour diagnostiquer
+```
+
 ## Démo
 
 Une démo est disponible dans le répertoire [`démo`](./demo/) : lancer le fichier `index.html` via un serveur et tester.
@@ -114,7 +182,7 @@ Une démo est disponible dans le répertoire [`démo`](./demo/) : lancer le fich
 
 ### Route `/commit/{repository}`
 
-Réalise les actions Git `add`, `commit` et `push`.
+Enqueue une demande de commit asynchrone.
 
 - Méthode : `POST`
 - Paramètre : `{repository}`, nom du dépôt
@@ -131,6 +199,16 @@ Réalise les actions Git `add`, `commit` et `push`.
     "message": "commit message"
   }
   ```
+
+**Réponse :**
+
+- `HTTP 202 Accepted` : Job enqueué avec succès
+  ```json
+  { "status": "queued", "jobId": "uuid-here" }
+  ```
+  ⚠️ Cela signifie que la demande est **enqueée**, pas que le commit Git a réussi
+- `HTTP 422 Unprocessable Entity` : Erreur de validation des données
+- `HTTP 500 Internal Server Error` : Token API invalide (si activé) ou autre erreur
 
 #### Détail des données `commit`
 
@@ -198,8 +276,10 @@ Retourne un objet JSON de la forme :
 
 On peut utiliser deux paramètres dans la query string :
 
-- `from` : index du premier `commit` à retourner
-- `limit` : nombre de `commit` à retourner, valeur maximum 50.
+- `from` : index du premier `commit` à retourner (pagination)
+- `limit` : nombre de `commit` à retourner, **valeur maximum 50** (plafonné automatiquement)
+
+**Note :** Il n'est pas possible de récupérer "tous les commits" — une limite est toujours appliquée pour garantir les performances même sur des dépôts avec des milliers de commits. Utiliser `from` et `limit` pour paginer.
 
 ### Route `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}`
 
@@ -225,9 +305,9 @@ Retourne un objet JSON de la forme :
 
 ### Route `/delete/:repository/:entity/:name`
 
-Supprime un fichier. Retourne un code 204 No Content en cas de succès.
+Enqueue une demande de suppression de fichier asynchrone.
 
-- Méthode : `GET`
+- Méthode : `DELETE`
 - Paramètres :
   - `{repository}` : nom du dépôt
   - `{entity}` : nom de l'entité
@@ -240,6 +320,12 @@ Supprime un fichier. Retourne un code 204 No Content en cas de succès.
     "message": "commit message"
   }
   ```
+
+**Réponse :**
+- `HTTP 202 Accepted` : Job enqueué avec succès
+- `HTTP 422 Unprocessable Entity` : Erreur de validation des données
+
+⚠️ Comme pour `/commit`, le retour `202` signifie que la demande est enqueée, pas que la suppression Git a réussi. Vérifier l'audit en cas de doute.
 
 #### Détail des données `delete`
 
@@ -297,4 +383,3 @@ Exemple :
 # tri par id descendant et file ascendant
 audit?sort=-id,file
 ```
-
