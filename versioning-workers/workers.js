@@ -67,7 +67,7 @@ const workerCommit = new Worker(
       auditOperation({
         repository: logData.repository,
         entity: logData.entity,
-        file: logData.gitFilePath,
+        file: logData.file,
         errorMessage: error.message,
       }, 'commit', AUDIT_STATES.ERROR, job.id);
       logger.error({
@@ -124,7 +124,7 @@ const workerDelete = new Worker(
       auditOperation({
         repository: logData.repository,
         entity: logData.entity,
-        file: logData.gitFilePath,
+        file: logData.file,
         errorMessage: error.message,
       }, 'delete', AUDIT_STATES.ERROR, job.id);
       logger.error({
@@ -147,13 +147,15 @@ async function executeGitOperations(operation, logData, job) {
   const data = repoData(job.data, repositoriesDirectory);
 
   // log operation
-  auditOperation({
+  const auditData = {
     repository: data.repository,
     entity: data.entity,
-    file: data.gitFilePath,
+    file: data.name,
     author: data.author,
     authorEmail: data.authorEmail,
-  }, operation, AUDIT_STATES.STARTED, job.id);
+  };
+
+  auditOperation(auditData, operation, AUDIT_STATES.STARTED, job.id);
 
   // file path protections
   if (data.safeFileName.includes('..') || data.safeFileName.includes('/') || path.isAbsolute(data.safeFileName)) {
@@ -205,12 +207,24 @@ async function executeGitOperations(operation, logData, job) {
         logger.info(logData, 'git:commit file written');
       } else if (operation === 'delete') {
         if (!fs.existsSync(data.absoluteFilePath)) {
-          throw new Error(`${data.absoluteFilePath} not exists`);
+          // File doesn't exist, audit and skip without retrying
+          auditOperation({
+            ...auditData,
+            metadata: JSON.stringify({ message: 'File does not exist' })
+          }, operation, AUDIT_STATES.SKIPPED, job.id);
+          logger.warn(logData, 'git:delete file does not exist, skipping');
+          return;
         }
 
         const statFile = fs.statSync(data.absoluteFilePath);
         if (!statFile.isFile()) {
-          throw new Error(`${data.absoluteFilePath} already exists and is not a file.`);
+          // Path exists but is not a file, audit and skip without retrying
+          auditOperation({
+            ...auditData,
+            metadata: JSON.stringify({ message: 'Path exists but is not a file' })
+          }, operation, AUDIT_STATES.SKIPPED, job.id);
+          logger.warn(logData, 'git:delete path is not a file, skipping');
+          return;
         }
 
         // deletes file
@@ -224,6 +238,12 @@ async function executeGitOperations(operation, logData, job) {
       status = await git.status();
 
       if (!status.files.length) {
+        auditOperation(
+          auditData,
+          operation,
+          AUDIT_STATES.SKIPPED,
+          job.id
+        );
         logger.warn(logData, `git:${operation} nothing to commit`);
         return;
       }
@@ -237,11 +257,7 @@ async function executeGitOperations(operation, logData, job) {
 
       // log operation
       auditOperation({
-        repository: data.repository,
-        entity: data.entity,
-        file: data.gitFilePath,
-        author: data.author,
-        authorEmail: data.authorEmail,
+        ...auditData,
         commitSha: sha
       }, operation, AUDIT_STATES.COMMITTED, job.id);
       logger.info({...logData, sha}, `git:${operation} job done`);
@@ -289,12 +305,16 @@ const workerPush = new Worker(
   async (job) => {
 
     // log operation
-    auditOperation({
+    const auditData = {
       repository: job.data.repository,
       entity: job.data.entity,
-      file: job.data.gitFilePath,
+      file: job.data.name,
+      author: job.data.author,
+      authorEmail: job.data.authorEmail,
       originJobId: job.data.originJobId
-    }, 'push', AUDIT_STATES.STARTED, job.id);
+    };
+
+    auditOperation(auditData, 'push', AUDIT_STATES.STARTED, job.id);
 
     const logData = {
       repository: job.data.repository,
@@ -322,18 +342,14 @@ const workerPush = new Worker(
 
           if (status.ahead > 0) {
             await git.push();
+
+            auditOperation(auditData, 'push', AUDIT_STATES.DONE, job.id);
             logger.info(logData, 'git:push done');
           } else {
+
+            auditOperation(auditData, 'push', AUDIT_STATES.SKIPPED, job.id);
             logger.warn(logData, 'git:push already done');
           }
-
-          // log operation
-          auditOperation({
-            repository: job.data.repository,
-            entity: job.data.entity,
-            file: job.data.gitFilePath,
-            originJobId: job.data.originJobId
-          }, 'push', AUDIT_STATES.DONE, job.id);
 
           logger.info(logData, 'git:push job done');
         }
@@ -341,11 +357,8 @@ const workerPush = new Worker(
     } catch (error) {
       // log operation
       auditOperation({
-        repository: job.data.repository,
-        entity: job.data.entity,
-        file: job.data.gitFilePath,
+        ...auditData,
         errorMessage: error.message,
-        originJobId: job.data.originJobId 
       }, 'push', AUDIT_STATES.ERROR, job.id);
 
       logger.error({

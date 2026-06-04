@@ -52,3 +52,12 @@ Content-Type: application/json
   "author": "Sébastien Raud",
   "author_email": "s_raud@yahoo.fr"
 }
+
+###
+
+# Requête 5 : audit
+GET http://localhost:3000/audit?filters=(entity = 'article' and file = 'article-test.md')&sort=-id&limit=5 HTTP/1.1
+
+###
+# Requête 6 : audit
+GET http://localhost:3000/audit?filters=(job_id = 16 or origin_job_id = 16) HTTP/1.1

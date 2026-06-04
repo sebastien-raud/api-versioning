@@ -33,8 +33,8 @@ const simpleGitOptions = {
 export async function historyController(req, res) {
   const { repository, entity, name } = req.params;
   
-  let limit = (req.query.limit || 10) < 50 ? (req.query.limit || 10) : 50;
-  const from = req.query.from || 0;
+  const limit = Math.min((req.query?.limit ?? 10), 50);
+  const from = parseInt(req.query?.from ?? 0, 10) || 0;
 
   const logData = {
     repository,

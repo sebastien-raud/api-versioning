@@ -7,7 +7,8 @@ export const AUDIT_STATES = {
   STARTED: 'started',
   COMMITTED: 'committed',
   DONE: 'done',
-  ERROR: 'error'
+  ERROR: 'error',
+  SKIPPED: 'skipped'
 };
 
 export function auditCreateTableOperations() {

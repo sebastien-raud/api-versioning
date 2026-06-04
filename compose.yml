@@ -9,6 +9,7 @@ services:
     volumes:
       - ./versioning-api:/srv/app
       - ./repos:/repos
+      - ./data:/data
     container_name: versioning-api
     ports:
       - 3000:3000

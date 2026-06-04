@@ -7,6 +7,7 @@ import { commitController } from "./controllers/commit.js";
 import { historyController } from "./controllers/history.js";
 import { diffController } from "./controllers/diff.js";
 import { deleteController } from './controllers/delete.js';
+import { auditController } from './controllers/audits.js';
 
 const app = express();
 const port = 3000;
@@ -19,6 +20,7 @@ app.post('/commit/:repository', commitController);
 app.get('/history/:repository/:entity/:name', historyController);
 app.get('/diff/:repository/:entity/:name/:commit1/:commit2', diffController);
 app.delete('/delete/:repository/:entity/:name', deleteController);
+app.get('/audit', auditController);
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM reçu, arrêt du serveur...');
