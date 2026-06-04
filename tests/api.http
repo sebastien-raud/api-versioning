@@ -1,6 +1,7 @@
 # Requête 1 : nouveau commit
 POST http://localhost:3000/commit/test-repos HTTP/1.1
 Content-Type: application/json
+X-Token-API: d5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8=
 
 {
   "entity": "article",
@@ -17,6 +18,7 @@ Content-Type: application/json
 # Requête 2 : nouveau mise à jour
 POST http://localhost:3000/commit/test-repos HTTP/1.1
 Content-Type: application/json
+X-Token-API: d5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8=
 
 {
   "entity": "article",
@@ -33,6 +35,7 @@ Content-Type: application/json
 # Requête 3 : historique
 # @name history
 GET http://localhost:3000/history/test-repos/article/article-test.md HTTP/1.1
+X-Token-API: d5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8=
 
 ###
 
@@ -41,12 +44,14 @@ GET http://localhost:3000/history/test-repos/article/article-test.md HTTP/1.1
 
 # Requête 4 : diff
 GET http://localhost:3000/diff/test-repos/article/article-test.md/{{hash1}}/{{hash2}}
+X-Token-API: d5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8=
 
 ###
 
 # Requête 4 : delete
 DELETE http://localhost:3000/delete/test-repos/article/article-test.md HTTP/1.1
 Content-Type: application/json
+X-Token-API: d5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8=
 
 {
   "author": "Sébastien Raud",
@@ -57,7 +62,9 @@ Content-Type: application/json
 
 # Requête 5 : audit
 GET http://localhost:3000/audit?filters=(entity = 'article' and file = 'article-test.md')&sort=-id&limit=5 HTTP/1.1
+X-Token-API: d5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8=
 
 ###
 # Requête 6 : audit
 GET http://localhost:3000/audit?filters=(job_id = 16 or origin_job_id = 16) HTTP/1.1
+X-Token-API: d5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8=

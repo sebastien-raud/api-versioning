@@ -3,6 +3,8 @@ import 'dotenv/config.js';
 import express from "express";
 import cors from "cors";
 
+import { apiTokenCheck } from './lib/apiTokenCheck.js';
+
 import { commitController } from "./controllers/commit.js";
 import { historyController } from "./controllers/history.js";
 import { diffController } from "./controllers/diff.js";
@@ -15,6 +17,8 @@ const port = 3000;
 app.use(cors(process.env.ALLOWED_DOMAINS || '*'));
 app.disable('x-powered-by');
 app.use(express.json());
+
+app.use(apiTokenCheck);
 
 app.post('/commit/:repository', commitController);
 app.get('/history/:repository/:entity/:name', historyController);
