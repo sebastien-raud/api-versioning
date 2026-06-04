@@ -473,7 +473,10 @@ dss ds *ds* **ds** 2325 dsq dsq dsq ! fsdf dsq</textarea>
 
                 const response = await fetch(`${API_BASE}/commit/${repository}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Token-API': 'd5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8='
+                    },
                     body: JSON.stringify(payload)
                 });
 
@@ -522,7 +525,11 @@ dss ds *ds* **ds** 2325 dsq dsq dsq ! fsdf dsq</textarea>
                 const entity = document.getElementById('historyEntity').value;
                 const name = document.getElementById('historyName').value;
 
-                const response = await fetch(`${API_BASE}/history/${repository}/${entity}/${name}`);
+                const response = await fetch(`${API_BASE}/history/${repository}/${entity}/${name}`, {
+                    headers: {
+                        'X-Token-API': 'd5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8='
+                    }
+                });
                 const data = await response.json();
 
                 if (response.ok && data.all && data.all.length > 0) {
@@ -596,7 +603,11 @@ dss ds *ds* **ds** 2325 dsq dsq dsq ! fsdf dsq</textarea>
                     return;
                 }
 
-                const response = await fetch(`${API_BASE}/diff/${repository}/${entity}/${name}/${commit1}/${commit2}`);
+                const response = await fetch(`${API_BASE}/diff/${repository}/${entity}/${name}/${commit1}/${commit2}`, {
+                    headers: { 
+                        'X-Token-API': 'd5XLTGRzB/ZS0nIFWjPnrqbtdL+7cVOjGgAUWkdtrf8='
+                    }
+                });
                 const data = await response.json();
 
                 if (response.ok && data.diff) {
