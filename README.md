@@ -17,13 +17,16 @@
     - [Route `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}`](#route-diffrepositoryentitynamecommit1commit2)
     - [Route `/delete/:repository/:entity/:name`](#route-deleterepositoryentityname)
       - [Détail des données `delete`](#détail-des-données-delete)
-  - [Todo](#todo)
+    - [Route `/audit`](#route-audit)
+      - [Détails sur la query string](#détails-sur-la-query-string)
 
 ## C'est quoi ?
 
-Une API REST qui permet de faire du versioning de documents avec Git en arrière plan (pour le versioning réel) et éventuellement une synchro vers un dépôt centralisé sur GitHub, Gitlab ou autres.
+Une API REST qui permet de faire du versioning de documents avec Git en arrière plan (pour le versioning réel) et éventuellement une synchro vers un dépôt centralisé sur GitHub, Gitlab ou autres. Les actions sont ordonnancées (mises en file) pour éviter des erreurs Git et enregistrées dans une table afin d'avoir une traçabilité complète et identifier d'éventuels problèmes.
 
-L'API est minimaliste et doit être utilisée comme un service pour dans un autre projet. L'API ne doit pas être exposée au public, elle ne prend pas en charge l'authentification.
+L'API est minimaliste et doit être utilisée comme un service pour dans un autre projet. L'API ne doit pas être exposée au public. Elle peut néanmoins être sécurisée par un token.
+
+Cas d'usage : gérer l'historisation des fichiers (cours, quiz, questionnaires, documents administratifs, slides...) pour la traçabilité Qualiopi tout en préservant une base simple côté Strapi.
 
 ## Architecture
 
@@ -66,6 +69,13 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
 │  - workerPush: pousse les changements                 │
 │  - Gère les repositories locaux                       │
 └───────────────────────────────────────────────────────┘
+                           │
+                           ▼ (Logs des opérations)
+┌───────────────────────────────────────────────────────┐
+│  SQLite                                               │
+│  - enregistrement des actions principales             |
+|    des opérations réalisées                           |
+└───────────────────────────────────────────────────────┘
 ```
 
 ### Composants
@@ -76,6 +86,7 @@ La file du `push` est traitée en différée. Cela permet de regrouper éventuel
 | versioning-worker | Traitement asynchrone des opérations Git                          | simple-git, BullMQ, IORedis |
 | Redis             | Broker de messages, gestion de la file                            | IORedis                     |
 | repos/            | Stockage des repositories Git locaux                              | Git                         |
+| data/             | Stockage de la base de données SQLite                             | SQLite                      |
 
 ## Installation
 
@@ -93,12 +104,13 @@ Une démo est disponible dans le répertoire [`démo`](./demo/) : lancer le fich
 
 ## Usage de l'API
 
-| Route                                                    | Méthode  | Description                                        |
-| ---                                                      | ---      | ---                                                |
-| `/commit/{repository}`                                   | `POST`   | Réalise le `add`, `commit` et `push` d'un fichier  |
-| `/history/{repository}/{entity}/{name}`                  | `GET`    | Affiche l'historique des `commit` d'un fichier     |
-| `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}` | `GET`    | Effectue un diff entre deux `commits` d'un fichier |
-| `/delete/:repository/:entity/:name`                      | `DELETE` | Supprime un fichier                                |
+| Route                                                    | Méthode  | Description                                            |
+| ---                                                      | ---      | ---                                                    |
+| `/commit/{repository}`                                   | `POST`   | Réalise le `add`, `commit` et `push` d'un fichier      |
+| `/history/{repository}/{entity}/{name}`                  | `GET`    | Affiche l'historique des `commit` d'un fichier         |
+| `/diff/{repository}/{entity}/{name}/{commit1}/{commit2}` | `GET`    | Effectue un diff entre deux `commits` d'un fichier     |
+| `/delete/:repository/:entity/:name`                      | `DELETE` | Supprime un fichier                                    |
+| `/audit`                                                 | `GET`    | Retourne les informations sur les opérations réalisées |
 
 ### Route `/commit/{repository}`
 
@@ -235,8 +247,54 @@ Supprime un fichier. Retourne un code 204 No Content en cas de succès.
 - `author_email` : email de l'utilisateur qui crée ou modifie le fichier, obligatoire
 - `message` : message du `commit`, optionnel
 
-## Todo
+### Route `/audit`
 
-- sécurisation par token
-- logs
-- traçabilité
+Retourne les informations sur les opérations réalisées.
+
+- Méthode : `GET`
+- Query string :
+  - `filters` : filtres de la requêtes
+  - `from` : index du premier `commit` à retourner
+  - `limit` : nombre de `commit` à retourner, valeur maximum 50
+  - `sort` : ordre de tri
+
+#### Détails sur la query string
+
+`filters` permet de filtrer sur les champs suivant :
+
+- `id` : identifiant technique de l'enregistrement
+- `created_at` : date de création de l'enregistrement, date UTC au format `YYYY-MM-DD hh:ii:ss` (ex : `2026-06-03 11:26:15`)
+- `repository` : dépôt Git
+- `operation` : type d'opération réalisée, dans la liste `commit`, `delete`, `push`
+- `status` : statut de l'opération réalisée, dans la liste `started` (démarrée), `committed` (commité), `done` (réalisé), `error` (en erreur), `skipped` (abandonnée)
+- `entity` : nom de l'entité
+- `file` : nom du fichier
+- `author` : auteur de la demande
+- `author_email` : email de l'auteur de la demande
+- `commit_sha` : identifiant de l'opération `commit` ou `delete` réalisée
+- `job_id` : identifiant du *job* de l'opération dans la file, pour `commit`, `delete` ou `push`
+- `origin_job_id` : identifiant du *job* `commit` ou `delete` à l'origine de la demande de `push`
+- `error_message` : message d'erreur
+- `metadata` : données complémentaires
+
+Les filtres permettent d'utiliser les opérateurs `=`, `>=`, `<=`, `and` et `or`. Ils utilisent également le système de parenthèses.
+
+Exemples de filtres :
+
+```plaintext
+# récupérer toute les actions pour le job_id 8 ainsi que le push
+audit?filters=(job_id = 8 or origin_job_id = 8)
+
+# fichier article-48.md, opérations réalisées entre le 01/06/2026 et le 07/06/2026
+audit?filters=(file = 'article-48.md' and created_at >= '2026-06-01 00:00:00' and created_at <= '2026-06-07 23:59:59')
+```
+
+`sort` permet d'indiquer l'ordre de tri du résultat. On peut mettre plusieurs champs séparés par une virgule. Le caractère `-` devant le nom indique que l'on tri dans l'ordre descendant.
+
+Exemple :
+
+```plaintext
+# tri par id descendant et file ascendant
+audit?sort=-id,file
+```
+
