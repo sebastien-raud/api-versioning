@@ -65,14 +65,14 @@ export function auditOperation(data, operation, status, jobId) {
     data?.repository || '',
     operation || '',
     status || '',
-    data?.entity ?? '',
-    data?.file ?? '',
-    data?.author ?? '',
-    data?.authorEmail ?? '',
-    data?.commitSha ?? '',
-    jobId ? jobId.toString() : '',
-    data?.originJobId ?? '',
-    data?.errorMessage ?? '',
-    data?.metadata ?? ''
+    data?.entity ?? null,
+    data?.file ?? null,
+    data?.author ?? null,
+    data?.authorEmail ?? null,
+    data?.commitSha ?? null,
+    jobId ? jobId.toString() : null,
+    data?.originJobId ?? null,
+    data?.errorMessage ?? null,
+    data?.metadata ?? null
   );
 }
