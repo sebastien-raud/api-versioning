@@ -151,13 +151,13 @@ Strapi ne reçoit **aucune notification** en cas d'erreur de commit ou push. C'e
 1. Strapi appelle POST /commit/:repository
    → HTTP 202 Accepted { jobId: '...' }
    
-2. Job enqueué dans Redis, travailleur le traite
+2. Job enqueué dans Redis, Worker le traite
 
-3. Travailleur exécute git add/commit localement
+3. Worker exécute git add/commit localement
    → Commit local succès → visible immédiatement en history
    → Commit local erreur → loggé en audit, Strapi ne le sait pas
 
-4. (Optionnel) Travailleur enqueue job push après délai
+4. (Optionnel) Worker enqueue job push après délai
    → Push vers GitHub succes/erreur → loggé en audit
    
 5. Strapi consulte la route /history pour voir l'état actuel
