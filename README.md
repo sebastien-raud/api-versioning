@@ -1,8 +1,8 @@
-# API de gestion de versioning de documents à travers Git
+# API de gestion de version de documents à travers Git
 
 ## Sommaire
 
-- [API de gestion de versioning de documents à travers Git](#api-de-gestion-de-versioning-de-documents-à-travers-git)
+- [API de gestion de version de documents à travers Git](#api-de-gestion-de-version-de-documents-à-travers-git)
   - [Sommaire](#sommaire)
   - [C'est quoi ?](#cest-quoi-)
   - [Architecture](#architecture)
