@@ -170,6 +170,8 @@ Strapi ne reçoit **aucune notification** en cas d'erreur de commit ou push. C'e
 
 Une démo est disponible dans le répertoire [`démo`](./demo/) : lancer le fichier `index.html` via un serveur et tester.
 
+Le répertoire [`tests`](./tests/) contient des tests de l'API.
+
 ## Usage de l'API
 
 | Route                                                    | Méthode  | Description                                            |
